@@ -1,32 +1,62 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>내 GitHub Pages 웹사이트</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      line-height: 1.6;
-      margin: 0;
-      padding: 20px;
-      background-color: #f4f4f4;
-    }
-    .container {
-      max-width: 800px;
-      margin: auto;
-      background: white;
-      padding: 20px;
-      border-radius: 5px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>사진 공유 지도</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .map-container {
+            display: flex;
+            justify-content: flex-start; /* 왼쪽 정렬 */
+            margin-top: 20px;
+        }
+
+        #map {
+            height: 500px;
+            width: 60%; /* 왼쪽에 배치되도록 설정 */
+            border-radius: 5px;
+        }
+    </style>
 </head>
 <body>
-  <div class="container">
-    <h1>안녕하세요!</h1>
-    <p>생물 채집과 연계할 수 있는 간단한 지도웹사이트입니다.</p>
-    <p>생물군계와 식물 병원균 전파를 관측하고, 관리하며, 조사하기 쉽도록 제작된 웹사이트이며. 촬영과 위치정보를 종합해 촬영 위치를 보관하고 그 정보에 기반에 여러 정보를 관측 혹은 예측할 수 있습니디.</p>
-  </div>
+    <div class="container">
+        <h1>📍 사진 공유 지도</h1>
+        <p>생물 채집과 연계할 수 있는 간단한 지도 웹사이트입니다.</p>
+        <p>생물군계와 식물 병원균 전파를 관측하고, 관리하며, 조사하기 쉽도록 제작되었습니다.</p>
+        <p>촬영과 위치 정보를 종합하여 촬영 위치를 보관하고, 그 정보에 기반해 여러 데이터를 관측하거나 예측할 수 있습니다.</p>
+    </div>
+
+    <div class="map-container">
+        <div id="map"></div>
+    </div>
+
+    <script>
+        var map = L.map('map').setView([37.5665, 126.9780], 10);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        var marker = L.marker([37.5665, 126.9780]).addTo(map);
+        marker.bindPopup('<img src="your-image-url.jpg" width="200px">').openPopup();
+    </script>
 </body>
 </html>
