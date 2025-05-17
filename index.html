@@ -43,9 +43,10 @@
             margin-left: 20px;
         }
 
-        input, button {
+        video {
+            width: 100%;
             display: block;
-            margin: 10px 0;
+            margin-top: 10px;
         }
     </style>
 </head>
@@ -58,9 +59,9 @@
     <div class="map-container">
         <div id="map"></div>
         <div class="upload-container">
-            <h2>사진 업로드</h2>
-            <input type="file" id="photoUpload" accept="image/*">
-            <button onclick="autoUpload()">자동 업로드</button>
+            <h2>📷 사진 촬영</h2>
+            <video id="cameraPreview" autoplay></video>
+            <button onclick="capturePhoto()">📸 촬영</button>
         </div>
     </div>
 
@@ -77,6 +78,7 @@
             measurementId: "G-0NVT6WD4GM"
         };
 
+        // Firebase 초기화
         const app = firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
@@ -85,32 +87,41 @@
             attribution: '© OpenStreetMap'
         }).addTo(map);
 
-        function autoUpload() {
-            var file = document.getElementById("photoUpload").files[0];
-            if (!file) {
-                alert("사진을 선택하세요!");
-                return;
+        // 카메라 접근 및 촬영
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                document.getElementById("cameraPreview").srcObject = stream;
+            } catch (error) {
+                alert("카메라 접근 권한이 필요합니다.");
             }
+        }
+
+        function capturePhoto() {
+            const video = document.getElementById("cameraPreview");
+            const canvas = document.createElement("canvas");
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const imageData = canvas.toDataURL("image/png");
 
             navigator.geolocation.getCurrentPosition(function(position) {
                 var lat = position.coords.latitude;
                 var lng = position.coords.longitude;
 
-                var reader = new FileReader();
-                reader.onload = function (e) {
-                    var marker = L.marker([lat, lng]).addTo(map);
-                    marker.bindPopup(`<img src="${e.target.result}" width="200px"><br><button onclick="deleteMarker('${lat}', '${lng}')">삭제</button>`).openPopup();
+                var marker = L.marker([lat, lng]).addTo(map);
+                marker.bindPopup(`<img src="${imageData}" width="200px"><br><button onclick="deleteMarker('${lat}', '${lng}')">삭제</button>`).openPopup();
 
-                    // Firebase에 데이터 저장
-                    var newPostRef = db.ref("photos").push();
-                    newPostRef.set({
-                        latitude: lat,
-                        longitude: lng,
-                        imageData: e.target.result,
-                        id: newPostRef.key
-                    });
-                };
-                reader.readAsDataURL(file);
+                // Firebase에 데이터 저장
+                var newPostRef = db.ref("photos").push();
+                newPostRef.set({
+                    latitude: lat,
+                    longitude: lng,
+                    imageData: imageData,
+                    id: newPostRef.key
+                });
             }, function(error) {
                 alert("위치를 가져올 수 없습니다.");
             });
@@ -140,6 +151,9 @@
                 marker.bindPopup(`<img src="${data.imageData}" width="200px"><br><button onclick="deleteMarker('${data.latitude}', '${data.longitude}')">삭제</button>`).openPopup();
             });
         });
+
+        // 페이지 로드 시 카메라 활성화
+        window.onload = startCamera;
     </script>
 </body>
 </html>
