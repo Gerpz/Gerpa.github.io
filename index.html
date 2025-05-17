@@ -1,154 +1,122 @@
-<!DOCTYPE html>
-<html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>사진 공유 지도</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-storage-compat.js"></script>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f4f4f4; }
-        .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 5px; }
-        .map-container { display: flex; margin-top: 20px; }
-        #map { height: 500px; width: 60%; }
-        .upload-container { width: 35%; margin-left: 20px; }
-        input, button { display: block; margin: 10px 0; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>📍 사진 공유 지도</h1>
-        <p>생물 채집 및 생태 관찰을 위한 플랫폼입니다.</p>
-        <button onclick="signIn()">🔑 Google 로그인</button>
-        <button onclick="signOut()">🚪 로그아웃</button>
+<div class="map-container">
+    <div id="map"></div>
+    <div class="upload-container">
+        <h2>사진 업로드</h2>
+        <input type="file" id="photoUpload" accept="image/*" capture="environment" style="display:none;">
+        <button onclick="autoUpload()">📸 사진 촬영 및 업로드</button>
     </div>
+</div>
 
-    <div class="map-container">
-        <div id="map"></div>
-        <div class="upload-container">
-            <h2>사진 업로드</h2>
-            <input type="file" id="photoUpload" accept="image/*" capture="environment" style="display:none;">
-            <button onclick="autoUpload()">📸 사진 촬영 및 업로드</button>
-        </div>
-    </div>
+<script>
+    // Firebase 설정
+    const firebaseConfig = {
+        apiKey: "AIzaSyC3nM-w8WysgDcxWwYrf4fb5zFyh-pYRj4",
+        authDomain: "biomapdb.firebaseapp.com",
+        databaseURL: "https://biomapdb-default-rtdb.firebaseio.com",
+        projectId: "biomapdb",
+        storageBucket: "biomapdb.firebasestorage.app",
+        messagingSenderId: "742608709750",
+        appId: "1:742608709750:web:acdb7dd4802d2c96811757",
+        measurementId: "G-0NVT6WD4GM"
+    };
 
-    <script>
-        // Firebase 설정
-        const firebaseConfig = {
-            apiKey: "YOUR_API_KEY",
-            authDomain: "YOUR_AUTH_DOMAIN",
-            databaseURL: "YOUR_DATABASE_URL",
-            projectId: "YOUR_PROJECT_ID",
-            storageBucket: "YOUR_STORAGE_BUCKET",
-            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-            appId: "YOUR_APP_ID",
-            measurementId: "YOUR_MEASUREMENT_ID"
-        };
+    // Firebase 초기화
+    const app = firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.database();
+    var currentUser = null;
 
-        // Firebase 초기화
-        const app = firebase.initializeApp(firebaseConfig);
-        const auth = firebase.auth();
-        const db = firebase.database();
-        const storage = firebase.storage();
-        var currentUser = null;
-
-        // 로그인 기능
-        function signIn() {
-            var provider = new firebase.auth.GoogleAuthProvider();
-            auth.signInWithPopup(provider)
-                .then((result) => {
-                    currentUser = result.user;
-                    alert(`환영합니다, ${currentUser.displayName}!`);
-                })
-                .catch((error) => {
-                    console.error("로그인 오류:", error);
-                });
-        }
-
-        // 로그아웃 기능
-        function signOut() {
-            auth.signOut().then(() => {
-                currentUser = null;
-                alert("로그아웃되었습니다.");
-            }).catch((error) => {
-                console.error("로그아웃 오류:", error);
+    // 로그인 기능
+    function signIn() {
+        var provider = new firebase.auth.GoogleAuthProvider();
+        auth.signInWithPopup(provider)
+            .then((result) => {
+                currentUser = result.user;
+                console.log("로그인 완료:", currentUser.email);
+                alert(`환영합니다, ${currentUser.displayName}!`);
+            })
+            .catch((error) => {
+                console.error("로그인 오류:", error);
             });
+    }
+
+    // 로그아웃 기능
+    function signOut() {
+        auth.signOut().then(() => {
+            currentUser = null;
+            alert("로그아웃되었습니다.");
+        }).catch((error) => {
+            console.error("로그아웃 오류:", error);
+        });
+    }
+
+    var map = L.map('map').setView([37.5665, 126.9780], 10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    function autoUpload() {
+        if (!currentUser) {
+            alert("로그인 후 사진을 업로드하세요!");
+            return;
         }
 
-        var map = L.map('map').setView([37.5665, 126.9780], 10);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap'
-        }).addTo(map);
+        var photoInput = document.getElementById("photoUpload");
+        photoInput.click(); // 자동으로 카메라 실행
 
-        function autoUpload() {
-            if (!currentUser) {
-                alert("로그인 후 사진을 업로드하세요!");
+        photoInput.onchange = function () {
+            var file = photoInput.files[0];
+            if (!file) {
+                alert("사진을 촬영하세요!");
                 return;
             }
 
-            var photoInput = document.getElementById("photoUpload");
-            photoInput.click();
+            navigator.geolocation.getCurrentPosition(function(position) {
+                var lat = position.coords.latitude;
+                var lng = position.coords.longitude;
 
-            photoInput.onchange = function () {
-                var file = photoInput.files[0];
-                if (!file) {
-                    alert("사진을 촬영하세요!");
-                    return;
-                }
+                var reader = new FileReader();
+                reader.onload = function (e) {
+                    var marker = L.marker([lat, lng]).addTo(map);
+                    marker.bindPopup(`<img src="${e.target.result}" width="200px">`).openPopup();
 
-                navigator.geolocation.getCurrentPosition(function(position) {
-                    var lat = position.coords.latitude;
-                    var lng = position.coords.longitude;
-
-                    var storageRef = storage.ref(`photos/${currentUser.uid}/${file.name}`);
-                    storageRef.put(file).then(snapshot => {
-                        snapshot.ref.getDownloadURL().then(url => {
-                            var newPostRef = db.ref("photos").push();
-                            newPostRef.set({
-                                userId: currentUser.uid,
-                                latitude: lat,
-                                longitude: lng,
-                                imageUrl: url,
-                                id: newPostRef.key
-                            });
-
-                            var marker = L.marker([lat, lng]).addTo(map);
-                            marker.bindPopup(`<img src="${url}" width="200px">`).openPopup();
-                        });
+                    var newPostRef = db.ref("photos").push();
+                    newPostRef.set({
+                        userId: currentUser.uid,
+                        latitude: lat,
+                        longitude: lng,
+                        imageData: e.target.result,
+                        id: newPostRef.key
                     });
-                }, function(error) {
-                    alert("위치를 가져올 수 없습니다.");
-                });
-            };
-        }
-
-        function loadMarkers() {
-            db.ref("photos").on("value", snapshot => {
-                snapshot.forEach(childSnapshot => {
-                    var data = childSnapshot.val();
-                    if (data.imageUrl) {
-                        var marker = L.marker([data.latitude, data.longitude]).addTo(map);
-                        marker.bindPopup(`<img src="${data.imageUrl}" width="200px">`).openPopup();
-                    }
-                });
+                };
+                reader.readAsDataURL(file);
+            }, function(error) {
+                alert("위치를 가져올 수 없습니다.");
             });
-        }
+        };
+    }
 
-        // Firebase 인증 상태 확인
-        auth.onAuthStateChanged((user) => {
-            if (user) {
-                currentUser = user;
-            } else {
-                currentUser = null;
-            }
+    function loadMarkers() {
+        db.ref("photos").on("value", snapshot => {
+            snapshot.forEach(childSnapshot => {
+                var data = childSnapshot.val();
+                var marker = L.marker([data.latitude, data.longitude]).addTo(map);
+                marker.bindPopup(`<img src="${data.imageData}" width="200px">`).openPopup();
+            });
         });
+    }
 
-        // 페이지 로드 시 마커 불러오기
-        loadMarkers();
-    </script>
-</body>
-</html>
+    // Firebase 인증 상태 확인
+    auth.onAuthStateChanged((user) => {
+        if (user) {
+            currentUser = user;
+            console.log("현재 로그인:", user.email);
+        } else {
+            currentUser = null;
+            console.log("사용자가 로그인되지 않음");
+        }
+    });
+
+    // 페이지 로드 시 마커 불러오기
+    loadMarkers();
+</script>
