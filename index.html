@@ -9,6 +9,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-storage-compat.js"></script>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f4f4f4; }
         .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 5px; }
@@ -38,20 +39,21 @@
     <script>
         // Firebase 설정
         const firebaseConfig = {
-            apiKey: "AIzaSyC3nM-w8WysgDcxWwYrf4fb5zFyh-pYRj4",
-            authDomain: "biomapdb.firebaseapp.com",
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
             databaseURL: "https://biomapdb-default-rtdb.firebaseio.com",
-            projectId: "biomapdb",
-            storageBucket: "biomapdb.firebasestorage.app",
-            messagingSenderId: "742608709750",
-            appId: "1:742608709750:web:acdb7dd4802d2c96811757",
-            measurementId: "G-0NVT6WD4GM"
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID",
+            measurementId: "YOUR_MEASUREMENT_ID"
         };
 
         // Firebase 초기화
         const app = firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.database();
+        const storage = firebase.storage();
         var currentUser = null;
 
         // 로그인 기능
@@ -60,7 +62,6 @@
             auth.signInWithPopup(provider)
                 .then((result) => {
                     currentUser = result.user;
-                    console.log("로그인 완료:", currentUser.email);
                     alert(`환영합니다, ${currentUser.displayName}!`);
                 })
                 .catch((error) => {
@@ -90,7 +91,7 @@
             }
 
             var photoInput = document.getElementById("photoUpload");
-            photoInput.click(); // 자동으로 카메라 실행
+            photoInput.click();
 
             photoInput.onchange = function () {
                 var file = photoInput.files[0];
@@ -103,46 +104,65 @@
                     var lat = position.coords.latitude;
                     var lng = position.coords.longitude;
 
-                    var reader = new FileReader();
-                    reader.onload = function (e) {
-                        var marker = L.marker([lat, lng]).addTo(map);
-                        marker.bindPopup(`<img src="${e.target.result}" width="200px">`).openPopup();
+                    var storageRef = storage.ref(`photos/${currentUser.uid}/${file.name}`);
+                    storageRef.put(file).then(snapshot => {
+                        snapshot.ref.getDownloadURL().then(url => {
+                            var newPostRef = db.ref("photos").push();
+                            newPostRef.set({
+                                userId: currentUser.uid,
+                                latitude: lat,
+                                longitude: lng,
+                                imageUrl: url,
+                                id: newPostRef.key
+                            });
 
-                        var newPostRef = db.ref("photos").push();
-                        newPostRef.set({
-                            userId: currentUser.uid,
-                            latitude: lat,
-                            longitude: lng,
-                            imageData: e.target.result,
-                            id: newPostRef.key
+                            var marker = L.marker([lat, lng]).addTo(map);
+                            marker.bindPopup(getPopupContent(url, newPostRef.key, marker)).openPopup();
                         });
-                    };
-                    reader.readAsDataURL(file);
+                    });
                 }, function(error) {
                     alert("위치를 가져올 수 없습니다.");
                 });
             };
         }
 
+        function getPopupContent(imageUrl, photoId, marker) {
+            let content = `<img src="${imageUrl}" width="200px"><br>`;
+            if (currentUser && currentUser.uid) {
+                content += `<button onclick="deletePhoto('${photoId}', marker)">❌ 삭제</button>`;
+            }
+            return content;
+        }
+
+        function deletePhoto(photoId, marker) {
+            if (!currentUser) {
+                alert("로그인 후 삭제할 수 있습니다!");
+                return;
+            }
+
+            db.ref(`photos/${photoId}`).remove().then(() => {
+                map.removeLayer(marker); // 지도에서 마커 삭제
+                alert("사진과 위치 정보가 삭제되었습니다!");
+            }).catch(error => {
+                console.error("삭제 오류:", error);
+            });
+        }
+
         function loadMarkers() {
             db.ref("photos").on("value", snapshot => {
                 snapshot.forEach(childSnapshot => {
                     var data = childSnapshot.val();
-                    var marker = L.marker([data.latitude, data.longitude]).addTo(map);
-                    marker.bindPopup(`<img src="${data.imageData}" width="200px">`).openPopup();
+                    if (data.imageUrl) {
+                        var marker = L.marker([data.latitude, data.longitude]).addTo(map);
+                        marker.bindPopup(getPopupContent(data.imageUrl, data.id, marker)).openPopup();
+                    }
                 });
             });
         }
 
         // Firebase 인증 상태 확인
         auth.onAuthStateChanged((user) => {
-            if (user) {
-                currentUser = user;
-                console.log("현재 로그인:", user.email);
-            } else {
-                currentUser = null;
-                console.log("사용자가 로그인되지 않음");
-            }
+            currentUser = user ? user : null;
         });
 
         // 페이지 로드 시 마커 불러오기
