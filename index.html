@@ -10,51 +10,20 @@
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            line-height: 1.6;
-            margin: 0;
-            padding: 20px;
-            background-color: #f4f4f4;
-        }
-
-        .container {
-            max-width: 800px;
-            margin: auto;
-            background: white;
-            padding: 20px;
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-        }
-
-        .map-container {
-            display: flex;
-            justify-content: flex-start;
-            margin-top: 20px;
-        }
-
-        #map {
-            height: 500px;
-            width: 60%;
-            border-radius: 5px;
-        }
-
-        .upload-container {
-            width: 35%;
-            margin-left: 20px;
-        }
-
-        input, button {
-            display: block;
-            margin: 10px 0;
-        }
+        body { font-family: Arial, sans-serif; line-height: 1.6; margin: 0; padding: 20px; background-color: #f4f4f4; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); }
+        .map-container { display: flex; justify-content: flex-start; margin-top: 20px; }
+        #map { height: 500px; width: 60%; border-radius: 5px; }
+        .upload-container { width: 35%; margin-left: 20px; }
+        input, button { display: block; margin: 10px 0; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>📍 사진 공유 지도</h1>
         <p>생물 채집 및 생태 관찰을 위한 지도 기반 플랫폼입니다.</p>
-        <button onclick="signIn()">로그인</button>
+        <button onclick="signIn()">🔑 Google 로그인</button>
+        <button onclick="signOut()">🚪 로그아웃</button>
     </div>
 
     <div class="map-container">
@@ -62,7 +31,7 @@
         <div class="upload-container">
             <h2>사진 업로드</h2>
             <input type="file" id="photoUpload" accept="image/*" capture="environment">
-            <button onclick="autoUpload()">사진 촬영 및 업로드</button>
+            <button onclick="autoUpload()">📸 사진 촬영 및 업로드</button>
         </div>
     </div>
 
@@ -83,16 +52,29 @@
         const app = firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.database();
-        var currentUser;
+        var currentUser = null;
 
-        // 로그인 기능
+        // 로그인 기능 (Popup 방식)
         function signIn() {
             var provider = new firebase.auth.GoogleAuthProvider();
-            auth.signInWithPopup(provider).then(result => {
-                currentUser = result.user;
-                console.log("로그인 완료:", currentUser.email);
-            }).catch(error => {
-                console.error("로그인 오류:", error);
+            auth.signInWithPopup(provider)
+                .then((result) => {
+                    currentUser = result.user;
+                    console.log("로그인 완료:", currentUser.email);
+                    alert(`환영합니다, ${currentUser.displayName}!`);
+                })
+                .catch((error) => {
+                    console.error("로그인 오류:", error);
+                });
+        }
+
+        // 로그아웃 기능
+        function signOut() {
+            auth.signOut().then(() => {
+                currentUser = null;
+                alert("로그아웃되었습니다.");
+            }).catch((error) => {
+                console.error("로그아웃 오류:", error);
             });
         }
 
@@ -147,6 +129,17 @@
                 });
             });
         }
+
+        // Firebase 인증 상태 확인
+        auth.onAuthStateChanged((user) => {
+            if (user) {
+                currentUser = user;
+                console.log("현재 로그인:", user.email);
+            } else {
+                currentUser = null;
+                console.log("사용자가 로그인되지 않음");
+            }
+        });
 
         // 페이지 로드 시 마커 불러오기
         loadMarkers();
