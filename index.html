@@ -6,8 +6,8 @@
     <title>사진 공유 지도</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -100,7 +100,7 @@
                 var reader = new FileReader();
                 reader.onload = function (e) {
                     var marker = L.marker([lat, lng]).addTo(map);
-                    marker.bindPopup(`<img src="${e.target.result}" width="200px"><br><button onclick="deleteMarker(this)">삭제</button>`).openPopup();
+                    marker.bindPopup(`<img src="${e.target.result}" width="200px"><br><button onclick="deleteMarker('${lat}', '${lng}')">삭제</button>`).openPopup();
 
                     // Firebase에 데이터 저장
                     var newPostRef = db.ref("photos").push();
@@ -117,11 +117,17 @@
             });
         }
 
-        function deleteMarker(button) {
-            var markerId = button.parentElement.getAttribute("data-id");
-            db.ref("photos/" + markerId).remove();
+        function deleteMarker(lat, lng) {
+            db.ref("photos").orderByChild("latitude").equalTo(parseFloat(lat)).once("value", snapshot => {
+                snapshot.forEach(childSnapshot => {
+                    if (childSnapshot.val().longitude === parseFloat(lng)) {
+                        db.ref("photos/" + childSnapshot.key).remove();
+                    }
+                });
+            });
+
             map.eachLayer(function(layer) {
-                if (layer instanceof L.Marker && layer.options.id === markerId) {
+                if (layer instanceof L.Marker && layer.getLatLng().lat === parseFloat(lat) && layer.getLatLng().lng === parseFloat(lng)) {
                     map.removeLayer(layer);
                 }
             });
@@ -131,8 +137,8 @@
         db.ref("photos").on("value", snapshot => {
             snapshot.forEach(childSnapshot => {
                 var data = childSnapshot.val();
-                var marker = L.marker([data.latitude, data.longitude], { id: data.id }).addTo(map);
-                marker.bindPopup(`<img src="${data.imageData}" width="200px" data-id="${data.id}"><br><button onclick="deleteMarker(this)">삭제</button>`).openPopup();
+                var marker = L.marker([data.latitude, data.longitude]).addTo(map);
+                marker.bindPopup(`<img src="${data.imageData}" width="200px"><br><button onclick="deleteMarker('${data.latitude}', '${data.longitude}')">삭제</button>`).openPopup();
             });
         });
     </script>
