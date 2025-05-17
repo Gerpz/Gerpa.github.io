@@ -6,6 +6,8 @@
     <title>사진 공유 지도</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -26,37 +28,113 @@
 
         .map-container {
             display: flex;
-            justify-content: flex-start; /* 왼쪽 정렬 */
+            justify-content: flex-start;
             margin-top: 20px;
         }
 
         #map {
             height: 500px;
-            width: 60%; /* 왼쪽에 배치되도록 설정 */
+            width: 60%;
             border-radius: 5px;
+        }
+
+        .upload-container {
+            width: 35%;
+            margin-left: 20px;
+        }
+
+        input, button {
+            display: block;
+            margin: 10px 0;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>📍 사진 공유 지도</h1>
-        <p>생물 채집과 연계할 수 있는 간단한 지도 웹사이트입니다.</p>
-        <p>생물군계와 식물 병원균 전파를 관측하고, 관리하며, 조사하기 쉽도록 제작되었습니다.</p>
-        <p>촬영과 위치 정보를 종합하여 촬영 위치를 보관하고, 그 정보에 기반해 여러 데이터를 관측하거나 예측할 수 있습니다.</p>
+        <p>생물 채집 및 생태 관찰을 위한 지도 기반 플랫폼입니다.</p>
     </div>
 
     <div class="map-container">
         <div id="map"></div>
+        <div class="upload-container">
+            <h2>사진 업로드</h2>
+            <input type="file" id="photoUpload" accept="image/*">
+            <button onclick="autoUpload()">자동 업로드</button>
+        </div>
     </div>
 
     <script>
+        // Firebase 설정
+        const firebaseConfig = {
+            apiKey: "AIzaSyC3nM-w8WysgDcxWwYrf4fb5zFyh-pYRj4",
+            authDomain: "biomapdb.firebaseapp.com",
+            databaseURL: "https://biomapdb-default-rtdb.firebaseio.com",
+            projectId: "biomapdb",
+            storageBucket: "biomapdb.firebasestorage.app",
+            messagingSenderId: "742608709750",
+            appId: "1:742608709750:web:acdb7dd4802d2c96811757",
+            measurementId: "G-0NVT6WD4GM"
+        };
+
+        // Firebase 초기화
+        const app = firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
         var map = L.map('map').setView([37.5665, 126.9780], 10);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap'
         }).addTo(map);
 
-        var marker = L.marker([37.5665, 126.9780]).addTo(map);
-        marker.bindPopup('<img src="your-image-url.jpg" width="200px">').openPopup();
+        function autoUpload() {
+            var file = document.getElementById("photoUpload").files[0];
+            if (!file) {
+                alert("사진을 선택하세요!");
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(function(position) {
+                var lat = position.coords.latitude;
+                var lng = position.coords.longitude;
+
+                var reader = new FileReader();
+                reader.onload = function (e) {
+                    var marker = L.marker([lat, lng]).addTo(map);
+                    marker.bindPopup(`<img src="${e.target.result}" width="200px"><br><button onclick="deleteMarker(this)">삭제</button>`).openPopup();
+
+                    // Firebase에 데이터 저장
+                    var newPostRef = db.ref("photos").push();
+                    newPostRef.set({
+                        latitude: lat,
+                        longitude: lng,
+                        imageData: e.target.result,
+                        id: newPostRef.key
+                    });
+                };
+                reader.readAsDataURL(file);
+            }, function(error) {
+                alert("위치를 가져올 수 없습니다.");
+            });
+        }
+
+        function deleteMarker(button) {
+            var markerId = button.parentElement.getAttribute("data-id");
+            db.ref("photos/" + markerId).remove();
+            map.eachLayer(function(layer) {
+                if (layer instanceof L.Marker && layer.options.id === markerId) {
+                    map.removeLayer(layer);
+                }
+            });
+        }
+
+        // Firebase에서 기존 데이터 불러오기
+        db.ref("photos").on("value", snapshot => {
+            snapshot.forEach(childSnapshot => {
+                var data = childSnapshot.val();
+                var marker = L.marker([data.latitude, data.longitude], { id: data.id }).addTo(map);
+                marker.bindPopup(`<img src="${data.imageData}" width="200px" data-id="${data.id}"><br><button onclick="deleteMarker(this)">삭제</button>`).openPopup();
+            });
+        });
     </script>
 </body>
 </html>
