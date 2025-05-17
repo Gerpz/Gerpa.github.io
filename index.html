@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.0.0/firebase-database-compat.js"></script>
     <style>
         body {
@@ -43,10 +44,9 @@
             margin-left: 20px;
         }
 
-        video {
-            width: 100%;
+        input, button {
             display: block;
-            margin-top: 10px;
+            margin: 10px 0;
         }
     </style>
 </head>
@@ -54,14 +54,15 @@
     <div class="container">
         <h1>📍 사진 공유 지도</h1>
         <p>생물 채집 및 생태 관찰을 위한 지도 기반 플랫폼입니다.</p>
+        <button onclick="signIn()">로그인</button>
     </div>
 
     <div class="map-container">
         <div id="map"></div>
         <div class="upload-container">
-            <h2>📷 사진 촬영</h2>
-            <video id="cameraPreview" autoplay></video>
-            <button onclick="capturePhoto()">📸 촬영</button>
+            <h2>사진 업로드</h2>
+            <input type="file" id="photoUpload" accept="image/*">
+            <button onclick="autoUpload()">자동 업로드</button>
         </div>
     </div>
 
@@ -80,80 +81,75 @@
 
         // Firebase 초기화
         const app = firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
         const db = firebase.database();
+        var currentUser;
+
+        // 로그인 기능
+        function signIn() {
+            var provider = new firebase.auth.GoogleAuthProvider();
+            auth.signInWithPopup(provider).then(result => {
+                currentUser = result.user;
+                console.log("로그인 완료:", currentUser.email);
+            }).catch(error => {
+                console.error("로그인 오류:", error);
+            });
+        }
 
         var map = L.map('map').setView([37.5665, 126.9780], 10);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap'
         }).addTo(map);
 
-        // 카메라 접근 및 촬영
-        async function startCamera() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                document.getElementById("cameraPreview").srcObject = stream;
-            } catch (error) {
-                alert("카메라 접근 권한이 필요합니다.");
+        function autoUpload() {
+            if (!currentUser) {
+                alert("로그인 후 사진을 업로드하세요!");
+                return;
             }
-        }
 
-        function capturePhoto() {
-            const video = document.getElementById("cameraPreview");
-            const canvas = document.createElement("canvas");
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext("2d");
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-            const imageData = canvas.toDataURL("image/png");
+            var file = document.getElementById("photoUpload").files[0];
+            if (!file) {
+                alert("사진을 선택하세요!");
+                return;
+            }
 
             navigator.geolocation.getCurrentPosition(function(position) {
                 var lat = position.coords.latitude;
                 var lng = position.coords.longitude;
 
-                var marker = L.marker([lat, lng]).addTo(map);
-                marker.bindPopup(`<img src="${imageData}" width="200px"><br><button onclick="deleteMarker('${lat}', '${lng}')">삭제</button>`).openPopup();
+                var reader = new FileReader();
+                reader.onload = function (e) {
+                    var marker = L.marker([lat, lng]).addTo(map);
+                    marker.bindPopup(`<img src="${e.target.result}" width="200px">`).openPopup();
 
-                // Firebase에 데이터 저장
-                var newPostRef = db.ref("photos").push();
-                newPostRef.set({
-                    latitude: lat,
-                    longitude: lng,
-                    imageData: imageData,
-                    id: newPostRef.key
-                });
+                    // Firebase에 데이터 저장
+                    var newPostRef = db.ref("photos").push();
+                    newPostRef.set({
+                        userId: currentUser.uid,
+                        latitude: lat,
+                        longitude: lng,
+                        imageData: e.target.result,
+                        id: newPostRef.key
+                    });
+                };
+                reader.readAsDataURL(file);
             }, function(error) {
                 alert("위치를 가져올 수 없습니다.");
             });
         }
 
-        function deleteMarker(lat, lng) {
-            db.ref("photos").orderByChild("latitude").equalTo(parseFloat(lat)).once("value", snapshot => {
+        function loadMarkers() {
+            db.ref("photos").on("value", snapshot => {
                 snapshot.forEach(childSnapshot => {
-                    if (childSnapshot.val().longitude === parseFloat(lng)) {
-                        db.ref("photos/" + childSnapshot.key).remove();
-                    }
+                    var data = childSnapshot.val();
+                    var marker = L.marker([data.latitude, data.longitude]).addTo(map);
+                    marker.bindPopup(`<img src="${data.imageData}" width="200px">`).openPopup();
                 });
-            });
-
-            map.eachLayer(function(layer) {
-                if (layer instanceof L.Marker && layer.getLatLng().lat === parseFloat(lat) && layer.getLatLng().lng === parseFloat(lng)) {
-                    map.removeLayer(layer);
-                }
             });
         }
 
-        // Firebase에서 기존 데이터 불러오기
-        db.ref("photos").on("value", snapshot => {
-            snapshot.forEach(childSnapshot => {
-                var data = childSnapshot.val();
-                var marker = L.marker([data.latitude, data.longitude]).addTo(map);
-                marker.bindPopup(`<img src="${data.imageData}" width="200px"><br><button onclick="deleteMarker('${data.latitude}', '${data.longitude}')">삭제</button>`).openPopup();
-            });
-        });
-
-        // 페이지 로드 시 카메라 활성화
-        window.onload = startCamera;
+        // 페이지 로드 시 마커 불러오기
+        loadMarkers();
     </script>
 </body>
 </html>
